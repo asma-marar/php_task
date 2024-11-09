@@ -1,0 +1,187 @@
+Basic Queries:
+1.SELECT * FROM students;
+
+2.SELECT COUNT(*) AS total_courses FROM courses;
+
+3.SELECT s.first_name
+FROM students s
+JOIN enrollments e ON s.student_id = e.student_id
+WHERE course_id = 1;
+
+4.SELECT email
+FROM instructors
+WHERE department = 'Computer Science';
+
+
+
+Intermediate Queries:
+5-SELECT c.course_id, c.course_name, 
+       (SELECT COUNT(*) 
+        FROM enrollments e 
+        WHERE e.course_id = c.course_id) AS number_of_students
+FROM courses c;
+
+
+6-SELECT s.first_name, s.last_name
+FROM students s
+WHERE s.student_id IN (
+    SELECT e.student_id
+    FROM enrollments e
+    WHERE e.grade = 4 
+);
+
+
+7-SELECT c.course_id, c.course_name, i.first_name, i.last_name
+FROM `course assignments` ca
+JOIN courses c ON ca.course_id = c.course_id
+JOIN instructors i ON ca.instructor_id = i.instructor_id
+WHERE ca.semester = 'Fall';
+
+
+8-SELECT AVG(grade) AS average_grade
+FROM enrollments
+WHERE course_id = 1;
+
+
+Advanced Queries:
+9-SELECT s.student_id, s.first_name, s.last_name, COUNT(e.course_id) AS course_count
+FROM students s
+JOIN enrollments e ON s.student_id = e.student_id
+JOIN `course assignments` ca ON e.course_id = ca.course_id
+WHERE ca.semester = 'Fall'
+GROUP BY s.student_id, s.first_name, s.last_name
+HAVING COUNT(e.course_id) > 3;
+
+10-SELECT s.student_id, s.first_name, s.last_name, e.course_id, e.grade
+FROM students s
+JOIN enrollments e ON s.student_id = e.student_id
+WHERE e.grade = 0;  
+
+11-SELECT s.student_id, s.first_name, s.last_name, AVG(e.grade) AS average_grade
+FROM students s
+JOIN enrollments e ON s.student_id = e.student_id
+GROUP BY s.student_id, s.first_name, s.last_name
+ORDER BY average_grade DESC
+LIMIT 1;
+
+12-SELECT c.department, COUNT(c.course_id) AS course_count
+FROM course_assignments ca
+JOIN courses c ON ca.course_id = c.course_id
+WHERE ca.year = YEAR(CURRENT_DATE)  -- This gets the current year
+GROUP BY c.department
+ORDER BY course_count DESC
+LIMIT 1;
+
+13-SELECT c.course_id, c.course_name
+FROM courses c
+LEFT JOIN enrollments e ON c.course_id = e.course_id
+WHERE e.course_id IS NULL;
+
+Functions and Aggregates
+1-
+DELIMITER //
+
+CREATE FUNCTION calculate_age(date_of_birth DATE)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE age INT;
+    SET age = YEAR(CURDATE()) - YEAR(date_of_birth);
+    
+    IF (MONTH(CURDATE()) < MONTH(date_of_birth)) OR (MONTH(CURDATE()) = MONTH(date_of_birth) AND DAY(CURDATE()) < DAY(date_of_birth)) THEN
+        SET age = age - 1;
+    END IF;
+    
+    RETURN age;
+END //
+
+DELIMITER ;
+
+
+2-
+DELIMITER //
+
+CREATE PROCEDURE enroll_student(
+    IN p_student_id INT,
+    IN p_course_id INT,
+    IN p_grade INT
+)
+BEGIN
+    INSERT INTO enrollments (student_id, course_id, grade)
+    VALUES (p_student_id, p_course_id, p_grade);
+END //
+
+DELIMITER ;
+
+
+3-
+SELECT c.department, AVG(e.grade) AS average_grade
+FROM courses c
+JOIN enrollments e ON c.course_id = e.course_id
+GROUP BY c.department;
+
+
+
+Constraints and Transactions
+1-ALTER TABLE students
+ADD CONSTRAINT unique_email UNIQUE (email);
+
+
+2-START TRANSACTION;
+
+-- Define variables for student and course
+SET @student_id = 1; -- Example student ID
+SET @course_id = 101; -- Example course ID
+
+-- Check current enrollment count for the course
+SELECT COUNT(*) INTO @current_enrollment
+FROM enrollments
+WHERE course_id = @course_id;
+
+-- Get the course capacity
+SELECT capacity INTO @course_capacity
+FROM courses
+WHERE course_id = @course_id;
+
+-- Check if the capacity is not exceeded
+IF @current_enrollment < @course_capacity THEN
+    -- Enroll the student in the course
+    INSERT INTO enrollments (student_id, course_id, grade)
+    VALUES (@student_id, @course_id, NULL); -- Assuming NULL for initial grade
+
+    COMMIT; -- Commit the transaction if enrollment is successful
+ELSE
+    ROLLBACK; -- Rollback the transaction if capacity is exceeded
+    SELECT 'Enrollment failed: Course capacity exceeded.' AS message;
+END IF;
+
+
+Optimization and Indexes
+1-CREATE INDEX idx_course_code ON courses (course_code);
+
+2-
+CREATE INDEX idx_course_id ON enrollments (course_id);
+CREATE INDEX idx_student_id ON students (student_id);
+
+
+join
+1-SELECT s.student_id, s.first_name, s.last_name, c.course_id, c.course_name
+FROM students s
+INNER JOIN enrollments e ON s.student_id = e.student_id
+INNER JOIN courses c ON e.course_id = c.course_id;
+
+2-SELECT i.instructor_id, i.first_name, i.last_name, c.course_id, c.course_name
+FROM instructors i
+LEFT JOIN course_assignments ca ON i.instructor_id = ca.instructor_id
+LEFT JOIN courses c ON ca.course_id = c.course_id;
+
+3-
+SELECT first_name, last_name, 'Student' AS role
+FROM students
+
+UNION
+
+SELECT first_name, last_name, 'Instructor' AS role
+FROM instructors;
+
+
